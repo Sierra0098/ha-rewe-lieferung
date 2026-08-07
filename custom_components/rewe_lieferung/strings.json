@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "REWE Lieferung einrichten",
+        "description": "Nach dem Einrichten erhältst du eine Webhook-URL, an die du die REWE-Liefer-SMS automatisch weiterleiten kannst (z.B. über MacroDroid).",
+        "data": {
+          "zip_code": "Postleitzahl"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Abfrageintervall (Sekunden)"
+        }
+      }
+    }
+  }
+}

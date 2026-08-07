@@ -1,0 +1,111 @@
+"""Coordinator für die REWE Lieferung Integration."""
+from __future__ import annotations
+
+import logging
+import re
+from datetime import timedelta
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
+
+from .const import (
+    CONF_SCAN_INTERVAL,
+    CONF_ZIP_CODE,
+    DEFAULT_SCAN_INTERVAL,
+    DELIVERY_ID_TTL,
+    DOMAIN,
+    REWE_API_URL,
+    STATUS_NO_DELIVERY,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+TRACKING_ID_RE = re.compile(r"wannkommt\.rewe\.de/([A-Za-z0-9\-_]+)")
+
+
+class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
+    """Fragt den REWE-Lieferstatus für die zuletzt per Webhook empfangene
+    Tracking-ID ab."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.entry = entry
+        self._delivery_id: str | None = None
+        self._received_at = None
+
+        scan_interval = entry.options.get(
+            CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        )
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=DOMAIN,
+            update_interval=timedelta(seconds=scan_interval),
+        )
+
+    @property
+    def zip_code(self) -> str:
+        return self.entry.data[CONF_ZIP_CODE]
+
+    def handle_incoming_text(self, text: str) -> bool:
+        """Wird vom Webhook mit dem rohen SMS-/Nachrichtentext aufgerufen.
+
+        Sucht nach einem wannkommt.rewe.de-Link und merkt sich die
+        Tracking-ID. Gibt True zurück, wenn eine ID gefunden wurde.
+        """
+        match = TRACKING_ID_RE.search(text)
+        if not match:
+            _LOGGER.debug("Keine REWE-Tracking-ID im Webhook-Text gefunden")
+            return False
+
+        self._delivery_id = match.group(1)
+        self._received_at = dt_util.utcnow()
+        _LOGGER.info("Neue REWE-Tracking-ID empfangen: %s", self._delivery_id)
+        self.hass.async_create_task(self.async_request_refresh())
+        return True
+
+    def _delivery_id_is_valid(self) -> bool:
+        if self._delivery_id is None or self._received_at is None:
+            return False
+        return dt_util.utcnow() - self._received_at < DELIVERY_ID_TTL
+
+    async def _async_update_data(self) -> dict:
+        if not self._delivery_id_is_valid():
+            return {"status": STATUS_NO_DELIVERY}
+        return await self._fetch_delivery_status(self._delivery_id)
+
+    async def _fetch_delivery_status(self, delivery_id: str) -> dict:
+        session = async_get_clientsession(self.hass)
+        url = REWE_API_URL.format(delivery_id=delivery_id)
+        try:
+            async with session.post(
+                url,
+                headers={"Accept": "application/json, text/plain, */*"},
+                json={"zipCode": self.zip_code},
+            ) as response:
+                response.raise_for_status()
+                delivery = await response.json(content_type=None)
+        except Exception as err:  # noqa: BLE001
+            raise UpdateFailed(f"REWE-Status konnte nicht geladen werden: {err}") from err
+
+        result: dict = {
+            "delivery_id": delivery_id,
+            "tracking_id_received_at": self._received_at.isoformat()
+            if self._received_at
+            else None,
+        }
+
+        order_status_list = delivery.get("orderStatusList") or []
+        result["status"] = (
+            order_status_list[0]["status"] if order_status_list else STATUS_NO_DELIVERY
+        )
+
+        if delivery.get("customersBeforeMe") is not None:
+            result["customers_before"] = delivery["customersBeforeMe"]
+
+        if delivery.get("expectedArrivalIntervalStart"):
+            result["expected_arrival_start"] = delivery["expectedArrivalIntervalStart"]
+
+        return result

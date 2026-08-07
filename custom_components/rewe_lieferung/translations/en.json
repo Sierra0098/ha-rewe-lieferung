@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up REWE Lieferung",
+        "description": "After setup you will get a webhook URL you can forward the REWE delivery SMS to automatically (e.g. via MacroDroid).",
+        "data": {
+          "zip_code": "ZIP code"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  }
+}
