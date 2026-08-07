@@ -25,8 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 
 TRACKING_ID_RE = re.compile(r"wannkommt\.rewe\.de/([A-Za-z0-9\-_]+)")
 ORDER_NUMBER_RE = re.compile(
-    r"(?:Bestellnummer|Bestell-?Nr\.?|Auftragsnummer|Order-?Nr\.?|Order[- ]?ID)"
-    r"[:\s]+([A-Za-z0-9\-]+)",
+    r"\b([A-Z0-9]-[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3})\b",
     re.IGNORECASE,
 )
 
