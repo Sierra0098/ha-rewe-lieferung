@@ -5,7 +5,7 @@ import logging
 
 from aiohttp import web
 
-from homeassistant.components import webhook
+from homeassistant.components import persistent_notification, webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -50,7 +50,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         webhook_url = f"<deine-ha-url>/api/webhook/{webhook_id}"
 
     _LOGGER.info("REWE Lieferung Webhook-URL: %s", webhook_url)
-    hass.components.persistent_notification.async_create(
+    persistent_notification.async_create(
+        hass,
         (
             "Leite REWE-Liefer-SMS an folgende URL weiter (z.B. via MacroDroid):\n\n"
             f"`{webhook_url}`"
