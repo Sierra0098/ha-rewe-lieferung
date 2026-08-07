@@ -76,6 +76,11 @@ class ReweLieferungSensor(CoordinatorEntity[ReweLieferungCoordinator], SensorEnt
             attrs[ATTR_CUSTOMERS_BEFORE] = data["customers_before"]
         if "expected_arrival_start" in data:
             attrs[ATTR_EXPECTED_ARRIVAL_START] = data["expected_arrival_start"]
+        if "expected_arrival_end" in data:
+            attrs["expected_arrival_end"] = data["expected_arrival_end"]
+        for key in ("deliveryDate", "plannedDeliveryDate", "deliverySlot", "timeSlot"):
+            if key in data:
+                attrs[key] = data[key]
         if "delivery_id" in data:
             attrs[ATTR_DELIVERY_ID] = data["delivery_id"]
         if data.get("tracking_id_received_at"):
