@@ -90,6 +90,8 @@ class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"REWE-Status konnte nicht geladen werden: {err}") from err
 
+        _LOGGER.debug("REWE Rohantwort für %s: %s", delivery_id, delivery)
+
         result: dict = {
             "delivery_id": delivery_id,
             "tracking_id_received_at": self._received_at.isoformat()
@@ -107,5 +109,14 @@ class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
 
         if delivery.get("expectedArrivalIntervalStart"):
             result["expected_arrival_start"] = delivery["expectedArrivalIntervalStart"]
+
+        if delivery.get("expectedArrivalIntervalEnd"):
+            result["expected_arrival_end"] = delivery["expectedArrivalIntervalEnd"]
+
+        # Undokumentierte Felder: falls REWE ein geplantes Lieferdatum/-fenster
+        # unter einem dieser Namen mitliefert, nehmen wir es automatisch mit.
+        for key in ("deliveryDate", "plannedDeliveryDate", "deliverySlot", "timeSlot"):
+            if delivery.get(key):
+                result[key] = delivery[key]
 
         return result
