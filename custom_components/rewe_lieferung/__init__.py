@@ -1,84 +1,80 @@
-"""Sensor-Plattform für die REWE Lieferung Integration."""
+"""REWE Lieferung Integration."""
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.network import NoURLAvailableError, get_url
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+import logging
 
-from .const import (
-    ATTR_CUSTOMERS_BEFORE,
-    ATTR_DELIVERY_ID,
-    ATTR_EXPECTED_ARRIVAL_START,
-    ATTR_RAW_STATUS,
-    ATTR_RECEIVED_AT,
-    CONF_WEBHOOK_ID,
-    DOMAIN,
-    STATUS_LABELS_DE,
-)
+from aiohttp import web
+
+from homeassistant.components import persistent_notification, webhook
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.network import get_url
+
+from .const import CONF_WEBHOOK_ID, DOMAIN
 from .coordinator import ReweLieferungCoordinator
 
+_LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
-) -> None:
-    coordinator: ReweLieferungCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([ReweLieferungSensor(coordinator, entry)])
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
-class ReweLieferungSensor(CoordinatorEntity[ReweLieferungCoordinator], SensorEntity):
-    """Zeigt den aktuellen REWE-Lieferstatus."""
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Integration aus einem Config Entry einrichten."""
+    coordinator = ReweLieferungCoordinator(hass, entry)
+    await coordinator.async_config_entry_first_refresh()
 
-    _attr_has_entity_name = True
-    _attr_name = "Status"
-    _attr_icon = "mdi:truck-delivery"
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    def __init__(self, coordinator: ReweLieferungCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._entry = entry
-        self._attr_unique_id = f"{entry.entry_id}_status"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="REWE Lieferung",
-            manufacturer="REWE",
-            model="Lieferservice Tracking",
-        )
+    webhook_id = entry.data[CONF_WEBHOOK_ID]
 
-    @property
-    def native_value(self) -> str:
-        raw_status = self.coordinator.data.get("status", "unknown")
-        return STATUS_LABELS_DE.get(raw_status, raw_status)
-
-    @property
-    def _webhook_url(self) -> str:
-        webhook_id = self._entry.data[CONF_WEBHOOK_ID]
+    async def handle_webhook(
+        hass: HomeAssistant, webhook_id: str, request
+    ) -> web.Response:
+        """Nimmt die weitergeleitete SMS entgegen und sucht die Tracking-ID."""
         try:
-            base_url = get_url(self.hass, allow_internal=False)
-        except NoURLAvailableError:
-            try:
-                base_url = get_url(self.hass, allow_internal=True)
-            except NoURLAvailableError:
-                base_url = "<deine-ha-url>"
-        return f"{base_url}/api/webhook/{webhook_id}"
+            text = await request.text()
+        except Exception:  # noqa: BLE001
+            text = ""
 
-    @property
-    def extra_state_attributes(self) -> dict:
-        data = self.coordinator.data
-        attrs: dict = {
-            ATTR_RAW_STATUS: data.get("status"),
-            "webhook_url": self._webhook_url,
-        }
+        found = coordinator.handle_incoming_text(text)
+        return web.json_response({"tracking_id_found": found})
 
-        if "customers_before" in data:
-            attrs[ATTR_CUSTOMERS_BEFORE] = data["customers_before"]
-        if "expected_arrival_start" in data:
-            attrs[ATTR_EXPECTED_ARRIVAL_START] = data["expected_arrival_start"]
-        if "delivery_id" in data:
-            attrs[ATTR_DELIVERY_ID] = data["delivery_id"]
-        if data.get("tracking_id_received_at"):
-            attrs[ATTR_RECEIVED_AT] = data["tracking_id_received_at"]
+    webhook.async_register(
+        hass, DOMAIN, "REWE Lieferung", webhook_id, handle_webhook
+    )
 
-        return attrs
+    try:
+        webhook_url = f"{get_url(hass, allow_internal=False)}/api/webhook/{webhook_id}"
+    except Exception:  # noqa: BLE001
+        webhook_url = f"<deine-ha-url>/api/webhook/{webhook_id}"
+
+    _LOGGER.info("REWE Lieferung Webhook-URL: %s", webhook_url)
+    persistent_notification.async_create(
+        hass,
+        (
+            "Leite REWE-Liefer-SMS an folgende URL weiter (z.B. via MacroDroid):\n\n"
+            f"`{webhook_url}`"
+        ),
+        title="REWE Lieferung: Webhook einrichten",
+        notification_id=f"{DOMAIN}_{entry.entry_id}_webhook",
+    )
+
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    entry.async_on_unload(lambda: webhook.async_unregister(hass, webhook_id))
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Config Entry entladen."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
+    return unload_ok
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Bei geänderten Optionen (z.B. Abfrageintervall) neu laden."""
+    await hass.config_entries.async_reload(entry.entry_id)
