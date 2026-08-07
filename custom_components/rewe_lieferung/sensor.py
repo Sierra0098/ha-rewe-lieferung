@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
@@ -14,6 +15,7 @@ from .const import (
     ATTR_EXPECTED_ARRIVAL_START,
     ATTR_RAW_STATUS,
     ATTR_RECEIVED_AT,
+    CONF_WEBHOOK_ID,
     DOMAIN,
     STATUS_LABELS_DE,
 )
@@ -36,6 +38,7 @@ class ReweLieferungSensor(CoordinatorEntity[ReweLieferungCoordinator], SensorEnt
 
     def __init__(self, coordinator: ReweLieferungCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_status"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
@@ -50,9 +53,24 @@ class ReweLieferungSensor(CoordinatorEntity[ReweLieferungCoordinator], SensorEnt
         return STATUS_LABELS_DE.get(raw_status, raw_status)
 
     @property
+    def _webhook_url(self) -> str:
+        webhook_id = self._entry.data[CONF_WEBHOOK_ID]
+        try:
+            base_url = get_url(self.hass, allow_internal=False)
+        except NoURLAvailableError:
+            try:
+                base_url = get_url(self.hass, allow_internal=True)
+            except NoURLAvailableError:
+                base_url = "<deine-ha-url>"
+        return f"{base_url}/api/webhook/{webhook_id}"
+
+    @property
     def extra_state_attributes(self) -> dict:
         data = self.coordinator.data
-        attrs: dict = {ATTR_RAW_STATUS: data.get("status")}
+        attrs: dict = {
+            ATTR_RAW_STATUS: data.get("status"),
+            "webhook_url": self._webhook_url,
+        }
 
         if "customers_before" in data:
             attrs[ATTR_CUSTOMERS_BEFORE] = data["customers_before"]
