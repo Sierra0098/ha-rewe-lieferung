@@ -24,6 +24,11 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 TRACKING_ID_RE = re.compile(r"wannkommt\.rewe\.de/([A-Za-z0-9\-_]+)")
+ORDER_NUMBER_RE = re.compile(
+    r"(?:Bestellnummer|Bestell-?Nr\.?|Auftragsnummer|Order-?Nr\.?|Order[- ]?ID)"
+    r"[:\s]+([A-Za-z0-9\-]+)",
+    re.IGNORECASE,
+)
 
 
 class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
@@ -50,19 +55,29 @@ class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
         return self.entry.data[CONF_ZIP_CODE]
 
     def handle_incoming_text(self, text: str) -> bool:
-        """Wird vom Webhook mit dem rohen SMS-/Nachrichtentext aufgerufen.
+        """Wird vom Webhook mit rohem Text aufgerufen (SMS oder E-Mail).
 
-        Sucht nach einem wannkommt.rewe.de-Link und merkt sich die
-        Tracking-ID. Gibt True zurück, wenn eine ID gefunden wurde.
+        Sucht zuerst nach einem vollständigen wannkommt.rewe.de-Link
+        (z.B. aus der SMS). Falls keiner gefunden wird, versucht es
+        alternativ, eine Bestellnummer aus einer Bestellbestätigungs-Mail
+        zu extrahieren, die denselben Zweck erfüllt.
+        Gibt True zurück, wenn eine ID gefunden wurde.
         """
         match = TRACKING_ID_RE.search(text)
-        if not match:
-            _LOGGER.debug("Keine REWE-Tracking-ID im Webhook-Text gefunden")
-            return False
+        if match:
+            new_id = match.group(1)
+            source = "SMS-Link"
+        else:
+            match = ORDER_NUMBER_RE.search(text)
+            if not match:
+                _LOGGER.debug("Keine REWE-Tracking-ID/Bestellnummer im Text gefunden")
+                return False
+            new_id = match.group(1)
+            source = "Bestellnummer (E-Mail)"
 
-        self._delivery_id = match.group(1)
+        self._delivery_id = new_id
         self._received_at = dt_util.utcnow()
-        _LOGGER.info("Neue REWE-Tracking-ID empfangen: %s", self._delivery_id)
+        _LOGGER.info("Neue REWE-Tracking-ID empfangen (%s): %s", source, new_id)
         self.hass.async_create_task(self.async_request_refresh())
         return True
 
