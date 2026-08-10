@@ -6,15 +6,23 @@ DOMAIN = "rewe_lieferung"
 CONF_ZIP_CODE = "zip_code"
 CONF_WEBHOOK_ID = "webhook_id"
 CONF_SCAN_INTERVAL = "scan_interval"
+CONF_SLOW_SCAN_INTERVAL = "slow_scan_interval"
 
-DEFAULT_SCAN_INTERVAL = 300  # Sekunden
+DEFAULT_SCAN_INTERVAL = 300  # Sekunden, aktiv sobald die SMS (Liefertag) da war
+DEFAULT_SLOW_SCAN_INTERVAL = 3600  # Sekunden, aktiv wenn nur die Bestell-Mail da ist
 MIN_SCAN_INTERVAL = 60
 
-# Wie lange eine per Webhook empfangene Tracking-ID gültig bleibt,
-# bevor wir wieder auf "keine Lieferung" zurückfallen.
-DELIVERY_ID_TTL = timedelta(hours=12)
+# Sicherheitsnetz: falls REWE nie einen finalen Status (DELIVERED/CANCELLED)
+# meldet, verwerfen wir die ID trotzdem irgendwann, um nicht endlos eine tote
+# Bestellung abzufragen. Der eigentliche Reset passiert aber status-basiert.
+DELIVERY_ID_TTL = timedelta(hours=48)
 
 STATUS_NO_DELIVERY = "NO_DELIVERY"
+
+# Status-Codes, bei denen die Bestellung abgeschlossen ist. Danach wird die
+# gemerkte Tracking-ID verworfen, damit der Sensor wieder "Keine Lieferung"
+# zeigt statt den alten Endstatus stehen zu lassen.
+TERMINAL_STATUSES = {"DELIVERED", "CANCELLED"}
 
 STATUS_LABELS_DE = {
     "CREATED": "Bestellt",

@@ -12,9 +12,11 @@ from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
     CONF_SCAN_INTERVAL,
+    CONF_SLOW_SCAN_INTERVAL,
     CONF_WEBHOOK_ID,
     CONF_ZIP_CODE,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SLOW_SCAN_INTERVAL,
     DOMAIN,
     MIN_SCAN_INTERVAL,
 )
@@ -69,11 +71,18 @@ class ReweLieferungOptionsFlow(OptionsFlow):
             CONF_SCAN_INTERVAL,
             self.entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         )
+        current_slow = self.entry.options.get(
+            CONF_SLOW_SCAN_INTERVAL,
+            self.entry.data.get(CONF_SLOW_SCAN_INTERVAL, DEFAULT_SLOW_SCAN_INTERVAL),
+        )
         schema = vol.Schema(
             {
                 vol.Required(CONF_SCAN_INTERVAL, default=current): vol.All(
                     vol.Coerce(int), vol.Range(min=MIN_SCAN_INTERVAL)
-                )
+                ),
+                vol.Required(CONF_SLOW_SCAN_INTERVAL, default=current_slow): vol.All(
+                    vol.Coerce(int), vol.Range(min=MIN_SCAN_INTERVAL)
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

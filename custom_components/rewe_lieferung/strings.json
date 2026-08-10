@@ -17,7 +17,8 @@
     "step": {
       "init": {
         "data": {
-          "scan_interval": "Abfrageintervall (Sekunden)"
+          "scan_interval": "Abfrageintervall (Sekunden)",
+          "slow_scan_interval": "Langsames Abfrageintervall vor dem Liefertag (Sekunden)"
         }
       }
     }

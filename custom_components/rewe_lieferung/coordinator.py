@@ -13,70 +13,105 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_SCAN_INTERVAL,
+    CONF_SLOW_SCAN_INTERVAL,
     CONF_ZIP_CODE,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SLOW_SCAN_INTERVAL,
     DELIVERY_ID_TTL,
     DOMAIN,
     REWE_API_URL,
     STATUS_NO_DELIVERY,
+    TERMINAL_STATUSES,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 TRACKING_ID_RE = re.compile(r"wannkommt\.rewe\.de/([A-Za-z0-9\-_]+)")
 ORDER_NUMBER_RE = re.compile(
-    r"\b([A-Z0-9]-[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3})\b",
+    r"(?:Bestellnummer|Bestell-?Nr\.?|Auftragsnummer|Order-?Nr\.?|Order[- ]?ID)"
+    r"[:\s]+([A-Za-z0-9\-]+)",
     re.IGNORECASE,
 )
+
+SOURCE_SMS = "sms"
+SOURCE_EMAIL = "email"
 
 
 class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
     """Fragt den REWE-Lieferstatus für die zuletzt per Webhook empfangene
-    Tracking-ID ab."""
+    Tracking-ID ab. Pollt schnell am Liefertag (Signal: SMS empfangen) und
+    langsam davor (Signal: nur die Bestell-Mail empfangen)."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.entry = entry
         self._delivery_id: str | None = None
         self._received_at = None
+        self._source: str | None = None
 
-        scan_interval = entry.options.get(
-            CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        self._fast_interval = timedelta(
+            seconds=entry.options.get(
+                CONF_SCAN_INTERVAL,
+                entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+            )
         )
+        self._slow_interval = timedelta(
+            seconds=entry.options.get(
+                CONF_SLOW_SCAN_INTERVAL,
+                entry.data.get(CONF_SLOW_SCAN_INTERVAL, DEFAULT_SLOW_SCAN_INTERVAL),
+            )
+        )
+
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=scan_interval),
+            update_interval=self._slow_interval,
         )
 
     @property
     def zip_code(self) -> str:
         return self.entry.data[CONF_ZIP_CODE]
 
+    def _apply_interval_for_source(self) -> None:
+        """Stellt das Poll-Intervall passend zur zuletzt bekannten Quelle ein."""
+        new_interval = (
+            self._fast_interval if self._source == SOURCE_SMS else self._slow_interval
+        )
+        if new_interval != self.update_interval:
+            _LOGGER.debug(
+                "Poll-Intervall auf %s gesetzt (Quelle: %s)", new_interval, self._source
+            )
+        self.update_interval = new_interval
+
     def handle_incoming_text(self, text: str) -> bool:
         """Wird vom Webhook mit rohem Text aufgerufen (SMS oder E-Mail).
 
         Sucht zuerst nach einem vollständigen wannkommt.rewe.de-Link
-        (z.B. aus der SMS). Falls keiner gefunden wird, versucht es
-        alternativ, eine Bestellnummer aus einer Bestellbestätigungs-Mail
-        zu extrahieren, die denselben Zweck erfüllt.
+        (SMS, kommt kurz vor der Lieferung -> schnelles Polling). Falls
+        keiner gefunden wird, versucht es alternativ, eine Bestellnummer
+        aus einer Bestellbestätigungs-Mail zu extrahieren (kommt direkt
+        nach der Bestellung -> langsames Polling, da Liefertag noch fern).
         Gibt True zurück, wenn eine ID gefunden wurde.
         """
         match = TRACKING_ID_RE.search(text)
         if match:
             new_id = match.group(1)
-            source = "SMS-Link"
+            source = SOURCE_SMS
+            source_label = "SMS-Link"
         else:
             match = ORDER_NUMBER_RE.search(text)
             if not match:
                 _LOGGER.debug("Keine REWE-Tracking-ID/Bestellnummer im Text gefunden")
                 return False
             new_id = match.group(1)
-            source = "Bestellnummer (E-Mail)"
+            source = SOURCE_EMAIL
+            source_label = "Bestellnummer (E-Mail)"
 
         self._delivery_id = new_id
         self._received_at = dt_util.utcnow()
-        _LOGGER.info("Neue REWE-Tracking-ID empfangen (%s): %s", source, new_id)
+        self._source = source
+        self._apply_interval_for_source()
+        _LOGGER.info("Neue REWE-Tracking-ID empfangen (%s): %s", source_label, new_id)
         self.hass.async_create_task(self.async_request_refresh())
         return True
 
@@ -87,6 +122,8 @@ class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
 
     async def _async_update_data(self) -> dict:
         if not self._delivery_id_is_valid():
+            self._source = None
+            self._apply_interval_for_source()
             return {"status": STATUS_NO_DELIVERY}
         return await self._fetch_delivery_status(self._delivery_id)
 
@@ -111,12 +148,24 @@ class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
             "tracking_id_received_at": self._received_at.isoformat()
             if self._received_at
             else None,
+            "source": self._source,
         }
 
         order_status_list = delivery.get("orderStatusList") or []
         result["status"] = (
             order_status_list[0]["status"] if order_status_list else STATUS_NO_DELIVERY
         )
+
+        if result["status"] in TERMINAL_STATUSES:
+            _LOGGER.info(
+                "Lieferung %s abgeschlossen (%s), Tracking-ID wird zurückgesetzt",
+                delivery_id,
+                result["status"],
+            )
+            self._delivery_id = None
+            self._received_at = None
+            self._source = None
+            self._apply_interval_for_source()
 
         if delivery.get("customersBeforeMe") is not None:
             result["customers_before"] = delivery["customersBeforeMe"]

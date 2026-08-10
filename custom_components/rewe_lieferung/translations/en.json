@@ -17,7 +17,8 @@
     "step": {
       "init": {
         "data": {
-          "scan_interval": "Polling interval (seconds)"
+          "scan_interval": "Polling interval (seconds)",
+          "slow_scan_interval": "Slow polling interval before delivery day (seconds)"
         }
       }
     }

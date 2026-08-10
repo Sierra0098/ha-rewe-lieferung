@@ -83,6 +83,8 @@ class ReweLieferungSensor(CoordinatorEntity[ReweLieferungCoordinator], SensorEnt
                 attrs[key] = data[key]
         if "delivery_id" in data:
             attrs[ATTR_DELIVERY_ID] = data["delivery_id"]
+        if data.get("source"):
+            attrs["polling_quelle"] = data["source"]
         if data.get("tracking_id_received_at"):
             attrs[ATTR_RECEIVED_AT] = data["tracking_id_received_at"]
 

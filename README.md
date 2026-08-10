@@ -32,4 +32,3 @@ selbst und pollt den Lieferstatus.
 
 Inspiriert von [toelke/rewe-lieferung-home-assistant](https://github.com/toelke/rewe-lieferung-home-assistant)
 und [LinqLover/wannkommtrewe-calendar](https://github.com/LinqLover/wannkommtrewe-calendar).
-# ha-rewe-lieferung
