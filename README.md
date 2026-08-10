@@ -15,12 +15,20 @@ selbst und pollt den Lieferstatus.
 3. "REWE Lieferung" in HACS suchen und installieren
 4. Home Assistant neu starten
 
-## Einrichtung
+## Einrichtung - SMS
 
 1. Einstellungen → Geräte & Dienste → Integration hinzufügen → **REWE
    Lieferung**
 2. Postleitzahl eingeben
-3. Die angezeigte Webhook-URL in einer SMS-Weiterleitungs-App (z.B.
+3. Die angezeigte Webhook-URL kopieren
+
+   **iOS**
+   Automation hier downloaden und um die kopierte Webhook-URL ergänzen.
+   Trigger = SMS enthält `wannkommt.rewe.de`,
+   Aktion = HTTP POST mit dem SMS-Text an die Webhook-URL
+   
+   **Android** (ungetestet)
+   in einer SMS-Weiterleitungs-App (z.B.
    MacroDroid) hinterlegen: Trigger = SMS enthält `wannkommt.rewe.de`,
    Aktion = HTTP POST mit dem SMS-Text an die Webhook-URL
 
