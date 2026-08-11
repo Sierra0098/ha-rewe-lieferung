@@ -154,9 +154,9 @@ Lieferadresse) wird **bewusst nicht ausgelesen**, aus Datenschutzgründen.
 | Erwartete Ankunft Start/Ende | `expectedArrivalIntervalStart` / `...End` | engeres Live-Fenster, erst ab `STARTED` gefüllt |
 | Letzter Statuswechsel | `statusTimestamp` | erst ab `ARRIVED`/`DELIVERED` gefüllt |
 | Kund:innen vor mir | `customersBeforeMe` | wird nach `DELIVERED` teils negativ – wirkt wie ein REWE-seitiger Zähler-Bug, wird unverändert durchgereicht |
-| Stornierungsgrund | `cancelReason` | in allen bisher beobachteten Antworten `null` |
-| Verzögerungsklasse | `delayClass` | in allen bisher beobachteten Antworten `null` |
-| ETA gerundet | `etaRounded` | in allen bisher beobachteten Antworten `null`, Format unbekannt |
+| Stornierungsgrund | `cancelReason` | |
+| Verzögerungsklasse | `delayClass` | |
+| ETA gerundet | `etaRounded` | |
 | Fahrer Breitengrad/Längengrad | `mapDetails.driverLocation.latitude`/`.longitude` | nur ab Status `APPROACHING` gefüllt |
 | Statusverlauf | `orderStatusList` | State = Anzahl Einträge, kompletter Verlauf inkl. Zeitstempel als Attribut `verlauf` |
 
