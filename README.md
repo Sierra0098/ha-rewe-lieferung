@@ -44,13 +44,15 @@ ankommt, schaltet die Integration automatisch auf das schnelle Poll-Intervall.
 Der Kurzbefehl lässt sich aktuell nicht direkt zum Download teilen, daher hier
 Screenshots der Einrichtung (Trigger + Aktion) zum Nachbauen:
 
-[HIER SCREENSHOT DES AUTOMATION-TRIGGERS EINFÜGEN]
+Trigger = SMS enthält `wannkommt.rewe.de`
 
-[HIER SCREENSHOT DER AUTOMATION-AKTION EINFÜGEN]
+<img width="300" alt="IMG_6280" src="https://github.com/user-attachments/assets/da573abd-ba05-41c3-9e5e-f87186f163a7" />
 
-Trigger = SMS enthält `wannkommt.rewe.de`,
 Aktion = HTTP POST mit dem SMS-Text an die Webhook-URL (die Webhook-URL aus
 Schritt 3 der Einrichtung dabei in die Aktion eintragen).
+
+<img width="300" alt="IMG_6281" src="https://github.com/user-attachments/assets/87a0aa0b-4106-403b-b537-eb1d78d6a7e8" />
+<img width="300" alt="IMG_6279" src="https://github.com/user-attachments/assets/4ff111cb-4947-4094-8090-62eabd00fdd8" />
 
 **Android (ungetestet)**
 In einer SMS-Weiterleitungs-App (z. B. MacroDroid) hinterlegen: Trigger = SMS
