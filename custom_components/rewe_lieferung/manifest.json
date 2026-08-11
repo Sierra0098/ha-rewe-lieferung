@@ -4,10 +4,10 @@
   "codeowners": [],
   "config_flow": true,
   "dependencies": ["webhook"],
-  "documentation": "https://github.com/toelke/rewe-lieferung-home-assistant",
+  "documentation": "https://github.com/sierra0098/ha-rewe-lieferung",
   "integration_type": "service",
   "iot_class": "cloud_push",
-  "issue_tracker": "https://github.com/toelke/rewe-lieferung-home-assistant/issues",
+  "issue_tracker": "https://github.com/sierra0098/ha-rewe-lieferung/issues",
   "requirements": [],
-  "version": "0.0.7"
+  "version": "0.0.9"
 }

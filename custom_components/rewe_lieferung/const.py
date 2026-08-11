@@ -40,15 +40,26 @@ STATUS_LABELS_DE = {
     STATUS_NO_DELIVERY: "Keine Lieferung",
 }
 
-ATTR_RAW_STATUS = "raw_status"
-ATTR_CUSTOMERS_BEFORE = "customers_before"
-ATTR_EXPECTED_ARRIVAL_START = "expected_arrival_start"
-ATTR_DELIVERY_ID = "delivery_id"
-ATTR_RECEIVED_AT = "tracking_id_received_at"
+# Rohfeld-Namen aus der wannkommt.rewe.de-Antwort. Bestätigt durch echte
+# Debug-Log-Mitschnitte (siehe README) – KEINE Vermutungen mehr.
+FIELD_STATUS = "status"
+FIELD_SHOP_ORDER_ID = "shopOrderId"
+FIELD_ORDER_VALUE = "orderValue"
+FIELD_ORDER_CREATED_TIMESTAMP = "orderCreatedTimestamp"
+FIELD_TIME_SLOT_START = "timeSlotStart"
+FIELD_TIME_SLOT_END = "timeSlotEnd"
+FIELD_EXPECTED_ARRIVAL_START = "expectedArrivalIntervalStart"
+FIELD_EXPECTED_ARRIVAL_END = "expectedArrivalIntervalEnd"
+FIELD_CANCEL_REASON = "cancelReason"
+FIELD_DELAY_CLASS = "delayClass"
+FIELD_ETA_ROUNDED = "etaRounded"
+FIELD_STATUS_TIMESTAMP = "statusTimestamp"
+FIELD_CUSTOMERS_BEFORE_ME = "customersBeforeMe"
+FIELD_ORDER_STATUS_LIST = "orderStatusList"
+FIELD_MAP_DETAILS = "mapDetails"
+FIELD_DRIVER_LOCATION = "driverLocation"
+FIELD_ADDRESS = "address"  # wird bewusst NICHT ausgelesen (personenbezogen)
 
 REWE_API_URL = "https://wannkommt.rewe.de/api/delivery/{delivery_id}"
 
 DEFAULT_UPDATE_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL)
-
-STORE_KEY_DELIVERY_ID = "delivery_id"
-STORE_KEY_RECEIVED_AT = "received_at"

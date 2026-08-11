@@ -44,17 +44,13 @@ ankommt, schaltet die Integration automatisch auf das schnelle Poll-Intervall.
 Der Kurzbefehl lässt sich aktuell nicht direkt zum Download teilen, daher hier
 Screenshots der Einrichtung (Trigger + Aktion) zum Nachbauen:
 
+[HIER SCREENSHOT DES AUTOMATION-TRIGGERS EINFÜGEN]
+
+[HIER SCREENSHOT DER AUTOMATION-AKTION EINFÜGEN]
+
 Trigger = SMS enthält `wannkommt.rewe.de`,
-
-<img width="300" alt="IMG_6280" src="https://github.com/user-attachments/assets/da573abd-ba05-41c3-9e5e-f87186f163a7" />
-
 Aktion = HTTP POST mit dem SMS-Text an die Webhook-URL (die Webhook-URL aus
 Schritt 3 der Einrichtung dabei in die Aktion eintragen).
-
-<img width="300" alt="IMG_6281" src="https://github.com/user-attachments/assets/87a0aa0b-4106-403b-b537-eb1d78d6a7e8" />
-<img width="300" alt="IMG_6279" src="https://github.com/user-attachments/assets/4ff111cb-4947-4094-8090-62eabd00fdd8" />
-
-
 
 **Android (ungetestet)**
 In einer SMS-Weiterleitungs-App (z. B. MacroDroid) hinterlegen: Trigger = SMS
@@ -139,20 +135,48 @@ lassen sich zwei Intervalle einstellen:
 
 Standard: 300 s (schnell) / 3600 s (langsam), Minimum jeweils 60 s.
 
-## Entity
+## Entitäten
 
-`sensor.rewe_lieferung_status` mit den Attributen:
+Alle Felder, die die REWE-API tatsächlich liefert, werden als eigene
+Sensor-Entitäten angelegt – bestätigt durch echte Debug-Log-Mitschnitte
+(nicht geraten). Ausnahme: `address` (Name, Straße, PLZ, Koordinaten der
+Lieferadresse) wird **bewusst nicht ausgelesen**, aus Datenschutzgründen.
 
-- `raw_status` – Rohstatus von REWE
-- `delivery_id` – erkannte Tracking-ID
-- `tracking_id_received_at` – Zeitpunkt, zu dem die ID empfangen wurde
-- `polling_quelle` – ob die letzte Aktualisierung von der SMS- oder
-  E-Mail-Erkennung ausgelöst wurde
-- `webhook_url` – die aktuelle Webhook-URL, zum Nachschlagen direkt in HA
+| Entität | Rohfeld | Hinweis |
+|---|---|---|
+| Status | `status` (bzw. `orderStatusList[0].status`) | Hauptsensor, deutsches Klartext-Label |
+| Bestellnummer | `shopOrderId` | |
+| Bestellwert | `orderValue` | Cent → Euro umgerechnet |
+| Bestellt am | `orderCreatedTimestamp` | |
+| Lieferfenster Start/Ende | `timeSlotStart` / `timeSlotEnd` | gebuchtes Fenster, bleibt konstant |
+| Erwartete Ankunft Start/Ende | `expectedArrivalIntervalStart` / `...End` | engeres Live-Fenster, erst ab `STARTED` gefüllt |
+| Letzter Statuswechsel | `statusTimestamp` | erst ab `ARRIVED`/`DELIVERED` gefüllt |
+| Kund:innen vor mir | `customersBeforeMe` | wird nach `DELIVERED` teils negativ – wirkt wie ein REWE-seitiger Zähler-Bug, wird unverändert durchgereicht |
+| Stornierungsgrund | `cancelReason` | in allen bisher beobachteten Antworten `null` |
+| Verzögerungsklasse | `delayClass` | in allen bisher beobachteten Antworten `null` |
+| ETA gerundet | `etaRounded` | in allen bisher beobachteten Antworten `null`, Format unbekannt |
+| Fahrer Breitengrad/Längengrad | `mapDetails.driverLocation.latitude`/`.longitude` | nur ab Status `APPROACHING` gefüllt |
+| Statusverlauf | `orderStatusList` | State = Anzahl Einträge, kompletter Verlauf inkl. Zeitstempel als Attribut `verlauf` |
+
+Der Status-Sensor trägt zusätzlich die Attribute `raw_status`,
+`delivery_id`, `polling_quelle`, `tracking_id_received_at` und `webhook_url`.
+
+Die meisten dieser Entitäten sind als **diagnostisch** markiert (in Home
+Assistant standardmäßig etwas dezenter dargestellt) – Status, Lieferfenster,
+erwartete Ankunft und Kund:innen vor mir sind normale Entitäten.
 
 Sobald die Lieferung abgeschlossen ist (`DELIVERED`/`CANCELLED`), wird die
-gemerkte Tracking-ID automatisch verworfen und der Sensor zeigt wieder „Keine
-Lieferung“.
+gemerkte Tracking-ID automatisch verworfen und der Status-Sensor zeigt wieder
+„Keine Lieferung“.
+
+### Datenschutz-Hinweis zum Debug-Log
+
+Die Rohantwort der REWE-API enthält in jedem Aufruf die volle Lieferadresse
+(Name, Straße, Hausnummer, PLZ, Koordinaten) unter `address`. Diese wird von
+der Integration nirgends in Entitäten oder Attribute übernommen – landet bei
+aktiviertem Debug-Logging (`custom_components.rewe_lieferung: debug`) aber
+weiterhin **im Klartext in der Logzeile** `REWE Rohantwort für ...`. Wer das
+Log länger aufbewahrt oder teilt, sollte das im Hinterkopf behalten.
 
 Inspiriert von [toelke/rewe-lieferung-home-assistant](https://github.com/toelke/rewe-lieferung-home-assistant)
 und [LinqLover/wannkommtrewe-calendar](https://github.com/LinqLover/wannkommtrewe-calendar).

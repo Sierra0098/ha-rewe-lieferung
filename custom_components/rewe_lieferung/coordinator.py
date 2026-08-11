@@ -19,6 +19,22 @@ from .const import (
     DEFAULT_SLOW_SCAN_INTERVAL,
     DELIVERY_ID_TTL,
     DOMAIN,
+    FIELD_CANCEL_REASON,
+    FIELD_CUSTOMERS_BEFORE_ME,
+    FIELD_DELAY_CLASS,
+    FIELD_DRIVER_LOCATION,
+    FIELD_ETA_ROUNDED,
+    FIELD_EXPECTED_ARRIVAL_END,
+    FIELD_EXPECTED_ARRIVAL_START,
+    FIELD_MAP_DETAILS,
+    FIELD_ORDER_CREATED_TIMESTAMP,
+    FIELD_ORDER_STATUS_LIST,
+    FIELD_ORDER_VALUE,
+    FIELD_SHOP_ORDER_ID,
+    FIELD_STATUS,
+    FIELD_STATUS_TIMESTAMP,
+    FIELD_TIME_SLOT_END,
+    FIELD_TIME_SLOT_START,
     REWE_API_URL,
     STATUS_NO_DELIVERY,
     TERMINAL_STATUSES,
@@ -141,6 +157,11 @@ class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"REWE-Status konnte nicht geladen werden: {err}") from err
 
+        # ACHTUNG: delivery["address"] enthält Name, Straße, PLZ und
+        # Koordinaten der Lieferadresse. Wird absichtlich NICHT ausgelesen
+        # und landet dadurch nicht in Entitäten/Attributen - taucht aber
+        # weiterhin in dieser Debug-Logzeile auf (siehe README, Datenschutz-
+        # Hinweis).
         _LOGGER.debug("REWE Rohantwort für %s: %s", delivery_id, delivery)
 
         result: dict = {
@@ -151,10 +172,31 @@ class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
             "source": self._source,
         }
 
-        order_status_list = delivery.get("orderStatusList") or []
+        order_status_list = delivery.get(FIELD_ORDER_STATUS_LIST) or []
         result["status"] = (
-            order_status_list[0]["status"] if order_status_list else STATUS_NO_DELIVERY
+            order_status_list[0][FIELD_STATUS]
+            if order_status_list
+            else delivery.get(FIELD_STATUS, STATUS_NO_DELIVERY)
         )
+        result["order_status_list"] = order_status_list
+
+        result["shop_order_id"] = delivery.get(FIELD_SHOP_ORDER_ID)
+        result["order_value"] = delivery.get(FIELD_ORDER_VALUE)
+        result["order_created_at"] = delivery.get(FIELD_ORDER_CREATED_TIMESTAMP)
+        result["time_slot_start"] = delivery.get(FIELD_TIME_SLOT_START)
+        result["time_slot_end"] = delivery.get(FIELD_TIME_SLOT_END)
+        result["expected_arrival_start"] = delivery.get(FIELD_EXPECTED_ARRIVAL_START)
+        result["expected_arrival_end"] = delivery.get(FIELD_EXPECTED_ARRIVAL_END)
+        result["cancel_reason"] = delivery.get(FIELD_CANCEL_REASON)
+        result["delay_class"] = delivery.get(FIELD_DELAY_CLASS)
+        result["eta_rounded"] = delivery.get(FIELD_ETA_ROUNDED)
+        result["status_timestamp"] = delivery.get(FIELD_STATUS_TIMESTAMP)
+        result["customers_before_me"] = delivery.get(FIELD_CUSTOMERS_BEFORE_ME)
+
+        map_details = delivery.get(FIELD_MAP_DETAILS) or {}
+        driver_location = map_details.get(FIELD_DRIVER_LOCATION) or {}
+        result["driver_latitude"] = driver_location.get("latitude")
+        result["driver_longitude"] = driver_location.get("longitude")
 
         if result["status"] in TERMINAL_STATUSES:
             _LOGGER.info(
@@ -166,20 +208,5 @@ class ReweLieferungCoordinator(DataUpdateCoordinator[dict]):
             self._received_at = None
             self._source = None
             self._apply_interval_for_source()
-
-        if delivery.get("customersBeforeMe") is not None:
-            result["customers_before"] = delivery["customersBeforeMe"]
-
-        if delivery.get("expectedArrivalIntervalStart"):
-            result["expected_arrival_start"] = delivery["expectedArrivalIntervalStart"]
-
-        if delivery.get("expectedArrivalIntervalEnd"):
-            result["expected_arrival_end"] = delivery["expectedArrivalIntervalEnd"]
-
-        # Undokumentierte Felder: falls REWE ein geplantes Lieferdatum/-fenster
-        # unter einem dieser Namen mitliefert, nehmen wir es automatisch mit.
-        for key in ("deliveryDate", "plannedDeliveryDate", "deliverySlot", "timeSlot"):
-            if delivery.get(key):
-                result[key] = delivery[key]
 
         return result
